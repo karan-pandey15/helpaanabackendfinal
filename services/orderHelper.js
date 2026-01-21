@@ -5,6 +5,7 @@ const ORDER_ROOM_PREFIX = 'orders:user:';
 const ADMIN_ROOM = 'orders:admin';
 const RIDER_ROOM = 'orders:rider';
 const PARTNER_ROOM = 'orders:partner';
+const CATEGORY_ROOM_PREFIX = 'orders:category:';
 
 const resolveUserId = (userId) => {
   if (!userId) return null;
@@ -15,7 +16,7 @@ const resolveUserId = (userId) => {
   return null;
 };
 
-const emitOrderEvent = (io, eventName, payload, userId) => {
+const emitOrderEvent = (io, eventName, payload, userId, category = null) => {
   if (!io) return;
   const normalizedUserId = resolveUserId(userId);
   if (normalizedUserId) {
@@ -24,6 +25,9 @@ const emitOrderEvent = (io, eventName, payload, userId) => {
   io.to(ADMIN_ROOM).emit(eventName, payload);
   io.to(PARTNER_ROOM).emit(eventName, payload);
   io.to(RIDER_ROOM).emit(eventName, payload);
+  if (category) {
+    io.to(`${CATEGORY_ROOM_PREFIX}${category}`).emit(eventName, payload);
+  }
 };
 
 const joinOrderRooms = (io, socketId, user) => {
@@ -40,6 +44,10 @@ const joinOrderRooms = (io, socketId, user) => {
     socket.join(PARTNER_ROOM);
   } else if (role === 'rider') {
     socket.join(RIDER_ROOM);
+  } else if (role === 'servicepartner') {
+    if (user.category) {
+      socket.join(`${CATEGORY_ROOM_PREFIX}${user.category}`);
+    }
   }
 
   return socket;
@@ -140,6 +148,7 @@ module.exports = {
   ADMIN_ROOM,
   RIDER_ROOM,
   PARTNER_ROOM,
+  CATEGORY_ROOM_PREFIX,
   resolveUserId,
   emitOrderEvent,
   joinOrderRooms,

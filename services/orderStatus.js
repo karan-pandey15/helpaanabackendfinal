@@ -5,6 +5,7 @@ const STATUS_VALUES = Order.ALLOWED_STATUSES;
 const ROLE_ALLOWED_STATUS_MAP = Object.freeze({
   picker: [...Order.PICKER_ALLOWED_STATUSES],
   rider: [...Order.RIDER_ALLOWED_STATUSES],
+  servicepartner: ['Accepted', 'Assigned', 'OutForDelivery', 'Delivered', 'Cancelled'],
   admin: [...STATUS_VALUES],
   customer: ['Cancelled']
 });
@@ -44,7 +45,7 @@ const applyStatusChange = async ({ order, status, actor }) => {
     status,
     updatedBy: {
       user: actor.type === 'user' ? actor.id : null,
-      partner: actor.type === 'partner' ? actor.id : null,
+      partner: (actor.type === 'partner' || actor.type === 'servicePartner') ? actor.id : null,
       role: actor.role
     },
     updatedAt: new Date()

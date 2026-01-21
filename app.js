@@ -21,10 +21,12 @@ const adminRoutes = require('./routes/admin');
 const ratingRoutes = require('./routes/rating');
 const { joinOrderRooms } = require('./services/orderHelper');
 const Order = require('./models/Order');
+const ServicePartner = require('./models/ServicePartner');
 const { serializeOrder } = require('./services/orderStatus');
 const searchRoutes = require('./routes/searchRoutes')
 const serviceRoutes = require('./routes/serviceRoutes');
 const hotelRoomRoutes = require('./routes/hotelRoomRoutes');
+const servicePartnerRoutes = require('./routes/servicePartnerRoutes');
 const app = express();
 
 app.use(cors({
@@ -50,6 +52,7 @@ app.use('/', productRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api', serviceRoutes);
 app.use('/api', hotelRoomRoutes);
+app.use('/api/service-partner', servicePartnerRoutes);
 
 // ✅ Centralized error handling
 app.use((err, req, res, next) => {
@@ -90,7 +93,11 @@ io.on('connection', async (socket) => {
     const payload = jwt.verify(token, JWT_SECRET);
 
     let user = null;
-    if (payload.partnerId) {
+    if (payload.partnerId && payload.role === 'servicePartner') {
+      // Service Partner
+      const sp = await ServicePartner.findById(payload.partnerId);
+      user = { _id: payload.partnerId, role: 'servicePartner', category: sp?.category };
+    } else if (payload.partnerId) {
       // Partner
       user = { _id: payload.partnerId, role: 'partner' };
     } else if (payload.userId) {
@@ -116,8 +123,9 @@ io.on('connection', async (socket) => {
     }
 
     // For partners, emit current orders
-    if (user.role === 'partner') {
-      const orders = await Order.find({}).sort({ createdAt: -1 });
+    if (user.role === 'partner' || user.role === 'servicePartner') {
+      const query = user.role === 'servicePartner' ? { category: user.category } : {};
+      const orders = await Order.find(query).sort({ createdAt: -1 });
       const allOrders = orders.map((order) => serializeOrder(order));
       socket.emit('orders:init', allOrders);
     }

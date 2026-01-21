@@ -84,6 +84,8 @@ statusHistorySchema.pre('validate', function (next) {
 const orderSchema = new mongoose.Schema({
   orderId: { type: String, required: true, unique: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  category: { type: String, default: null },
+  servicePartner: { type: mongoose.Schema.Types.ObjectId, ref: 'ServicePartner', default: null },
 
   items: {
     type: [itemSchema],

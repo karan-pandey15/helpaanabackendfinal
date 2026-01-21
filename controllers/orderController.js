@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const Partner = require('../models/Partner');
+const Product = require('../models/Product');
+const Service = require('../models/ServiceModels');
 const {
   sanitizeItems,
   computePricing,
@@ -33,8 +35,42 @@ const createOrder = async (req, res) => {
     if (!user) return res.status(404).json({ ok: false, message: 'User not found' });
 
     const sanitizedItems = sanitizeItems(items);
+    
+    // Auto-resolve categories if missing
+    let resolvedCategory = null;
+    for (let item of sanitizedItems) {
+      if (!item.category) {
+        console.log(`Resolving category for product: ${item.productId}`);
+        // Try Product
+        let p = await Product.findOne({ id: item.productId });
+        if (!p && mongoose.Types.ObjectId.isValid(item.productId)) {
+          p = await Product.findById(item.productId);
+        }
+        if (p) {
+          item.category = p.category;
+          console.log(`Found Product category: ${p.category}`);
+        } else {
+          // Try Service
+          if (mongoose.Types.ObjectId.isValid(item.productId)) {
+            let s = await Service.findById(item.productId);
+            if (s) {
+              item.category = s.category;
+              console.log(`Found Service category: ${s.category}`);
+            }
+          }
+        }
+      }
+      if (item.category && !resolvedCategory) {
+        resolvedCategory = item.category;
+      }
+    }
+
     const pricingPayload = computePricing(sanitizedItems, pricing);
     const selectedAddress = buildOrderAddress(user, selectUserAddress(user, addressId), address);
+    
+    // Get category from items or use resolved one
+    const orderCategory = resolvedCategory || (sanitizedItems && sanitizedItems.length > 0 ? sanitizedItems[0].category : null);
+    console.log(`Final Order Category: ${orderCategory}`);
 
     if (isOnlinePayment) {
       return res.status(400).json({
@@ -54,6 +90,7 @@ const createOrder = async (req, res) => {
     const order = await Order.create({
       orderId: generateOrderId(),
       user: user._id,
+      category: orderCategory,
       items: sanitizedItems,
       pricing: pricingPayload,
       address: selectedAddress,
@@ -74,7 +111,7 @@ const createOrder = async (req, res) => {
     }
 
     const io = req.app.get('io');
-    emitOrderEvent(io, 'orders:new', serializeOrder(order), userId);
+    emitOrderEvent(io, 'orders:new', serializeOrder(order), userId, orderCategory);
 
     const payload = order.toObject();
     delete payload.__v;

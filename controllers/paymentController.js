@@ -1,5 +1,8 @@
+const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const Product = require('../models/Product');
+const Service = require('../models/ServiceModels');
 const {
   sanitizeItems,
   computePricing,
@@ -47,8 +50,36 @@ const createPaymentOrder = async (req, res) => {
     }
 
     const sanitizedItems = sanitizeItems(items);
+
+    // Auto-resolve categories if missing
+    let resolvedCategory = null;
+    for (let item of sanitizedItems) {
+      if (!item.category) {
+        // Try Product
+        let p = await Product.findOne({ id: item.productId });
+        if (!p && mongoose.Types.ObjectId.isValid(item.productId)) {
+          p = await Product.findById(item.productId);
+        }
+        if (p) {
+          item.category = p.category;
+        } else {
+          // Try Service
+          if (mongoose.Types.ObjectId.isValid(item.productId)) {
+            let s = await Service.findById(item.productId);
+            if (s) item.category = s.category;
+          }
+        }
+      }
+      if (item.category && !resolvedCategory) {
+        resolvedCategory = item.category;
+      }
+    }
+
     const pricingPayload = computePricing(sanitizedItems, pricing);
     const amountPayable = Number(pricingPayload.grandTotal);
+    
+    // Get category from items or use resolved one
+    const orderCategory = resolvedCategory || (sanitizedItems && sanitizedItems.length > 0 ? sanitizedItems[0].category : null);
 
     if (!Number.isFinite(amountPayable) || amountPayable <= 0) {
       return res.status(400).json({ ok: false, message: 'Invalid payable amount' });
@@ -66,6 +97,7 @@ const createPaymentOrder = async (req, res) => {
     const baseOrderData = {
       orderId: internalOrderId,
       user: user._id,
+      category: orderCategory,
       items: sanitizedItems,
       pricing: pricingPayload,
       address: addressPayload,
@@ -90,7 +122,7 @@ const createPaymentOrder = async (req, res) => {
       const io = req.app.get('io');
       const payload = order.toObject();
       delete payload.__v;
-      emitOrderEvent(io, 'orders:new', payload, userId);
+      emitOrderEvent(io, 'orders:new', payload, userId, orderCategory);
 
       return res.status(201).json({ ok: true, order: payload });
     }
@@ -121,7 +153,7 @@ const createPaymentOrder = async (req, res) => {
     const io = req.app.get('io');
     const payload = order.toObject();
     delete payload.__v;
-    emitOrderEvent(io, 'orders:new', payload, userId);
+    emitOrderEvent(io, 'orders:new', payload, userId, orderCategory);
 
     payload.razorpayOrder = {
       id: razorpayOrder.id,

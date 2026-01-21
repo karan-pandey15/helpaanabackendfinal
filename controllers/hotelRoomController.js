@@ -20,7 +20,11 @@ function uploadBufferToCloudinary(buffer) {
 // Create Hotel Room
 exports.createHotelRoom = async (req, res) => {
   try {
-    const { name, description, pricePerNight, category, location, amenities, maxGuests } = req.body;
+    const { 
+      name, description, pricePerNight, category, 
+      propertyArea, address, city, state, country, pincode,
+      amenities, phone, email, hotelCareName, maxGuests, rating 
+    } = req.body;
     const files = req.files || [];
 
     const uploads = [];
@@ -34,8 +38,17 @@ exports.createHotelRoom = async (req, res) => {
       description,
       pricePerNight: Number(pricePerNight),
       category,
-      location,
+      propertyArea,
+      address,
+      city,
+      state,
+      country,
+      pincode,
+      phone,
+      email,
+      hotelCareName,
       maxGuests: Number(maxGuests),
+      rating: Number(rating || 0),
       amenities: Array.isArray(amenities) ? amenities : (amenities ? amenities.split(',') : []),
       images: uploads
     });
@@ -60,7 +73,11 @@ exports.updateHotelRoom = async (req, res) => {
       }
     }
 
-    const updateFields = ['name', 'description', 'pricePerNight', 'category', 'location', 'maxGuests', 'status', 'rating'];
+    const updateFields = [
+      'name', 'description', 'pricePerNight', 'category', 
+      'propertyArea', 'address', 'city', 'state', 'country', 'pincode',
+      'phone', 'email', 'hotelCareName', 'maxGuests', 'status', 'rating'
+    ];
     updateFields.forEach(field => {
       if (req.body[field] !== undefined) {
         hotelRoom[field] = (field === 'pricePerNight' || field === 'maxGuests' || field === 'rating') ? Number(req.body[field]) : req.body[field];
